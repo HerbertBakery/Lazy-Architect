@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lazy Architect (MathPickle-style) – Wall Puzzle</title>
+  <style>
+    :root { --bg:#0b0f14; --panel:#121a22; --text:#e7eef7; --muted:#9fb2c7; --accent:#68d391; --danger:#f56565; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { display:grid; grid-template-columns: 380px 1fr; gap:18px; padding:18px; }
+    .card { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:14px; }
+    h1 { font-size:18px; margin:0 0 10px; }
+    label { display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
+    input, button { width:100%; box-sizing:border-box; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); color:var(--text); padding:10px 10px; }
+    button { cursor:pointer; background:rgba(104,211,145,.14); border-color:rgba(104,211,145,.45); }
+    button:hover { background:rgba(104,211,145,.22); }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .small { font-size:12px; color:var(--muted); line-height:1.35; }
+    .pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); }
+    .status { padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.03); }
+    .ok { border-color: rgba(104,211,145,.6); background: rgba(104,211,145,.12); }
+    .bad { border-color: rgba(245,101,101,.6); background: rgba(245,101,101,.12); }
+    canvas { width:100%; height: calc(100vh - 36px); background: #0f141b; border:1px solid rgba(255,255,255,.08); border-radius:14px; }
+    .hint { margin-top:10px; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+           padding:2px 6px; border:1px solid rgba(255,255,255,.18); border-radius:8px; background:rgba(255,255,255,.05); }
+    .divider { height:1px; background: rgba(255,255,255,.10); margin:12px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Lazy Architect – Wall Puzzle</h1>
+      <div class="small">
+        Click near an <b>grid edge</b> to toggle a wall. Rooms are connected cell regions separated by walls.
+        <br><br>
+        <b>Score:</b> walls are counted as <b>continuous straight lines</b> (runs), not tiny segments.
+        <br>
+        <b>Extra space:</b> any leftover rooms are <b>ignored</b>. Only target rooms matter.
+      </div>
+
+      <label>Target room sizes (comma-separated)</label>
+      <input id="sizes" value="1,2,3,4,5,6" />
+
+      <div class="row">
+        <div>
+          <label>Grid rows</label>
+          <input id="rows" type="number" min="2" max="30" value="6" />
+        </div>
+        <div>
+          <label>Grid cols</label>
+          <input id="cols" type="number" min="2" max="30" value="6" />
+        </div>
+      </div>
+
+      <label>Count outer boundary walls?</label>
+      <div class="row">
+        <button id="outerOn" title="Outer boundary counts toward wall total">Yes (count)</button>
+        <button id="outerOff" title="Outer boundary does NOT count toward wall total">No (ignore)</button>
+      </div>
+
+      <label>Actions</label>
+      <div class="row">
+        <button id="reset">Reset (no interior walls)</button>
+        <button id="random">Randomize a bit</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <label>Status</label>
+      <div id="status" class="status bad">
+        <div style="margin-bottom:8px;">
+          <span class="pill">Progress</span>
+          <span id="progressText">—</span>
+        </div>
+        <div>
+          <span class="pill">Wall lines</span>
+          <span id="wallsText">—</span>
+        </div>
+        <div style="margin-top:8px;">
+          <span class="pill">Found target rooms</span>
+          <span id="foundText">—</span>
+        </div>
+        <div style="margin-top:6px;">
+          <span class="pill">Remaining</span>
+          <span id="remainingText">—</span>
+        </div>
+      </div>
+
+      <div class="hint small">
+        Notes:
+        <ul>
+          <li>Completed (counting) rooms get colored + labeled on the grid.</li>
+          <li>Extras are allowed (hallways/atrium/etc.) and ignored.</li>
+          <li>Try <span class="kbd">3×7</span> if you want a “tight” build for 1–6 (sum 21).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div>
+      <canvas id="c"></canvas>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const elSizes = document.getElementById('sizes');
+  const elRows  = document.getElementById('rows');
+  const elCols  = document.getElementById('cols');
+
+  const elStatus = document.getElementById('status');
+  const elProgressText = document.getElementById('progressText');
+  const elWallsText = document.getElementById('wallsText');
+  const elFoundText = document.getElementById('foundText');
+  const elRemainingText = document.getElementById('remainingText');
+
+  let countOuter = true;
+
+  // Walls:
+  // verticalWalls[r][c] => wall on vertical edge between (r,c-1) and (r,c), c = 0..C
+  // horizontalWalls[r][c] => wall on horizontal edge between (r-1,c) and (r,c), r = 0..R
+  let R = 6, C = 6;
+  let verticalWalls = [];
+  let horizontalWalls = [];
+
+  // Palette for target room fills (by size, repeats safely)
+  const palette = [
+    "rgba(138,180,248,0.28)", // 1
+    "rgba(104,211,145,0.28)", // 2
+    "rgba(246,224,94,0.28)",  // 3
+    "rgba(237,137,54,0.28)",  // 4
+    "rgba(245,101,101,0.28)", // 5
+    "rgba(183,148,244,0.28)", // 6
+    "rgba(79,209,197,0.28)",  // 7
+    "rgba(252,129,129,0.28)", // 8
+    "rgba(160,174,192,0.28)"  // 9+
+  ];
+
+  function colorForSize(size) {
+    if (size <= 0) return "rgba(255,255,255,0.10)";
+    const idx = Math.min(size, palette.length) - 1;
+    return palette[idx];
+  }
+
+  function parseTargets() {
+    const raw = elSizes.value.trim();
+    if (!raw) return [];
+    return raw.split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(n => Number(n))
+      .filter(n => Number.isFinite(n) && n > 0)
+      .map(n => Math.floor(n));
+  }
+
+  function initWalls(rows, cols) {
+    R = rows; C = cols;
+    verticalWalls = Array.from({length: R}, () => Array(C+1).fill(false));
+    horizontalWalls = Array.from({length: R+1}, () => Array(C).fill(false));
+
+    // Outer boundary always present
+    for (let r = 0; r < R; r++) {
+      verticalWalls[r][0] = true;
+      verticalWalls[r][C] = true;
+    }
+    for (let c = 0; c < C; c++) {
+      horizontalWalls[0][c] = true;
+      horizontalWalls[R][c] = true;
+    }
+  }
+
+  function resetInteriorWalls() {
+    for (let r = 0; r < R; r++) {
+      for (let c = 1; c < C; c++) verticalWalls[r][c] = false;
+    }
+    for (let r = 1; r < R; r++) {
+      for (let c = 0; c < C; c++) horizontalWalls[r][c] = false;
+    }
+  }
+
+  function randomize() {
+    resetInteriorWalls();
+    const tries = Math.floor((R*C) * 0.9);
+    for (let i = 0; i < tries; i++) {
+      if (Math.random() < 0.5) {
+        const r = Math.floor(Math.random()*R);
+        const c = 1 + Math.floor(Math.random()*(C-1));
+        verticalWalls[r][c] = Math.random() < 0.33;
+      } else {
+        const r = 1 + Math.floor(Math.random()*(R-1));
+        const c = Math.floor(Math.random()*C);
+        horizontalWalls[r][c] = Math.random() < 0.33;
+      }
+    }
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  // Count continuous straight wall "lines" (runs)
+  function wallLineCount() {
+    let totalRuns = 0;
+
+    // vertical runs by grid line c
+    for (let c = 0; c <= C; c++) {
+      const isOuterLine = (c === 0 || c === C);
+      if (isOuterLine && !countOuter) continue;
+
+      let inRun = false;
+      for (let r = 0; r < R; r++) {
+        const present = verticalWalls[r][c] === true;
+        if (present && !inRun) { totalRuns++; inRun = true; }
+        else if (!present && inRun) { inRun = false; }
+      }
+    }
+
+    // horizontal runs by grid line r
+    for (let r = 0; r <= R; r++) {
+      const isOuterLine = (r === 0 || r === R);
+      if (isOuterLine && !countOuter) continue;
+
+      let inRun = false;
+      for (let c = 0; c < C; c++) {
+        const present = horizontalWalls[r][c] === true;
+        if (present && !inRun) { totalRuns++; inRun = true; }
+        else if (!present && inRun) { inRun = false; }
+      }
+    }
+
+    return totalRuns;
+  }
+
+  // Compute rooms as components with cell lists
+  function computeRoomObjects() {
+    const seen = Array.from({length:R}, () => Array(C).fill(false));
+    const rooms = [];
+
+    const dirs = [
+      {dr:0, dc:1},
+      {dr:0, dc:-1},
+      {dr:1, dc:0},
+      {dr:-1, dc:0},
+    ];
+
+    function hasWallBetween(r1,c1,r2,c2) {
+      if (r1 === r2 && c2 === c1+1) return verticalWalls[r1][c1+1];
+      if (r1 === r2 && c2 === c1-1) return verticalWalls[r1][c1];
+      if (c1 === c2 && r2 === r1+1) return horizontalWalls[r1+1][c1];
+      if (c1 === c2 && r2 === r1-1) return horizontalWalls[r1][c1];
+      return true;
+    }
+
+    for (let r = 0; r < R; r++) {
+      for (let c = 0; c < C; c++) {
+        if (seen[r][c]) continue;
+
+        const stack = [[r,c]];
+        seen[r][c] = true;
+        const cells = [];
+
+        while (stack.length) {
+          const [cr, cc] = stack.pop();
+          cells.push([cr, cc]);
+
+          for (const {dr, dc} of dirs) {
+            const nr = cr + dr, nc = cc + dc;
+            if (nr < 0 || nr >= R || nc < 0 || nc >= C) continue;
+            if (seen[nr][nc]) continue;
+            if (hasWallBetween(cr,cc,nr,nc)) continue;
+            seen[nr][nc] = true;
+            stack.push([nr,nc]);
+          }
+        }
+
+        rooms.push({ size: cells.length, cells });
+      }
+    }
+
+    return rooms;
+  }
+
+  // Match rooms to targets (extras ignored).
+  // Returns list of matched room indices and counts found/remaining.
+  function matchTargets(rooms, targets) {
+    // Build required counts map
+    const need = new Map();
+    for (const t of targets) need.set(t, (need.get(t) || 0) + 1);
+
+    // Track which rooms are used
+    const used = Array(rooms.length).fill(false);
+    const matched = []; // {roomIndex, size}
+
+    // Greedy: match smaller targets first so 1s/2s don't get blocked (usually safer)
+    const sortedTargets = [...targets].sort((a,b)=>a-b);
+
+    for (const t of sortedTargets) {
+      // find an unused room of size t
+      let foundIdx = -1;
+      for (let i = 0; i < rooms.length; i++) {
+        if (used[i]) continue;
+        if (rooms[i].size === t) { foundIdx = i; break; }
+      }
+      if (foundIdx !== -1) {
+        used[foundIdx] = true;
+        matched.push({ roomIndex: foundIdx, size: t });
+        need.set(t, need.get(t) - 1);
+        if (need.get(t) === 0) need.delete(t);
+      }
+    }
+
+    // Build found counts
+    const foundCounts = new Map();
+    for (const m of matched) foundCounts.set(m.size, (foundCounts.get(m.size) || 0) + 1);
+
+    // Remaining counts
+    const remainingCounts = new Map();
+    for (const t of targets) remainingCounts.set(t, (remainingCounts.get(t) || 0) + 1);
+    for (const [sz, cnt] of foundCounts.entries()) {
+      remainingCounts.set(sz, remainingCounts.get(sz) - cnt);
+      if (remainingCounts.get(sz) <= 0) remainingCounts.delete(sz);
+    }
+
+    const completed = remainingCounts.size === 0 && targets.length > 0;
+
+    return { matched, used, foundCounts, remainingCounts, completed };
+  }
+
+  function formatCounts(map) {
+    if (!map || map.size === 0) return "none";
+    const entries = [...map.entries()].sort((a,b)=>a[0]-b[0]);
+    return entries.map(([k,v]) => v === 1 ? `${k}` : `${k}×${v}`).join(", ");
+  }
+
+  function updateStatus(rooms, match, wallLines, targets) {
+    elWallsText.textContent = `${wallLines}`;
+
+    const foundText = formatCounts(match.foundCounts);
+    const remainingText = formatCounts(match.remainingCounts);
+
+    elFoundText.textContent = foundText;
+    elRemainingText.textContent = remainingText;
+
+    if (targets.length === 0) {
+      elProgressText.textContent = "Enter targets to start.";
+      elStatus.classList.remove('ok','bad');
+      return;
+    }
+
+    if (match.completed) {
+      elProgressText.innerHTML = `<b>COMPLETED</b> ✅ — Score: <b>${wallLines}</b> wall lines`;
+      elStatus.classList.add('ok');
+      elStatus.classList.remove('bad');
+    } else {
+      const have = targets.length - [...match.remainingCounts.values()].reduce((a,b)=>a+b,0);
+      elProgressText.textContent = `In progress — satisfied ${have}/${targets.length} target rooms`;
+      elStatus.classList.add('bad');
+      elStatus.classList.remove('ok');
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    const rect = canvas.getBoundingClientRect();
+    const pad = 18;
+    const w = rect.width, h = rect.height;
+
+    const cellSize = Math.floor(Math.min((w - pad*2)/C, (h - pad*2)/R));
+    const gridW = cellSize * C;
+    const gridH = cellSize * R;
+
+    const ox = Math.floor((w - gridW)/2);
+    const oy = Math.floor((h - gridH)/2);
+
+    // background
+    ctx.fillStyle = "#0f141b";
+    ctx.fillRect(0,0,w,h);
+
+    // compute rooms + matching
+    const targets = parseTargets();
+    const rooms = computeRoomObjects();
+    const match = matchTargets(rooms, targets);
+    const wallLines = wallLineCount();
+    updateStatus(rooms, match, wallLines, targets);
+
+    // fill matched rooms with color
+    for (const m of match.matched) {
+      const room = rooms[m.roomIndex];
+      ctx.fillStyle = colorForSize(room.size);
+      for (const [r,c] of room.cells) {
+        const x = ox + c*cellSize;
+        const y = oy + r*cellSize;
+        ctx.fillRect(x+1, y+1, cellSize-2, cellSize-2);
+      }
+    }
+
+    // subtle grid
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    for (let r = 0; r <= R; r++) {
+      ctx.beginPath();
+      ctx.moveTo(ox, oy + r*cellSize);
+      ctx.lineTo(ox + gridW, oy + r*cellSize);
+      ctx.stroke();
+    }
+    for (let c = 0; c <= C; c++) {
+      ctx.beginPath();
+      ctx.moveTo(ox + c*cellSize, oy);
+      ctx.lineTo(ox + c*cellSize, oy + gridH);
+      ctx.stroke();
+    }
+
+    // walls
+    ctx.strokeStyle = "rgba(231,238,247,0.95)";
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+
+    // vertical walls
+    for (let r = 0; r < R; r++) {
+      for (let c = 0; c <= C; c++) {
+        if (!verticalWalls[r][c]) continue;
+        const x = ox + c*cellSize;
+        const y1 = oy + r*cellSize;
+        const y2 = oy + (r+1)*cellSize;
+        ctx.beginPath();
+        ctx.moveTo(x, y1);
+        ctx.lineTo(x, y2);
+        ctx.stroke();
+      }
+    }
+    // horizontal walls
+    for (let r = 0; r <= R; r++) {
+      for (let c = 0; c < C; c++) {
+        if (!horizontalWalls[r][c]) continue;
+        const y = oy + r*cellSize;
+        const x1 = ox + c*cellSize;
+        const x2 = ox + (c+1)*cellSize;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+      }
+    }
+
+    // labels for matched rooms (size number)
+    // place at the average of cell centers
+    for (const m of match.matched) {
+      const room = rooms[m.roomIndex];
+      let sx = 0, sy = 0;
+      for (const [r,c] of room.cells) {
+        sx += (ox + c*cellSize + cellSize/2);
+        sy += (oy + r*cellSize + cellSize/2);
+      }
+      const cx = sx / room.cells.length;
+      const cy = sy / room.cells.length;
+
+      ctx.font = `bold ${Math.max(14, Math.floor(cellSize*0.55))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // outline for readability
+      ctx.lineWidth = Math.max(3, Math.floor(cellSize*0.08));
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.strokeText(String(room.size), cx, cy);
+
+      ctx.fillStyle = "rgba(231,238,247,0.92)";
+      ctx.fillText(String(room.size), cx, cy);
+    }
+  }
+
+  function toggleWallAt(px, py) {
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    const pad = 18;
+    const cellSize = Math.floor(Math.min((w - pad*2)/C, (h - pad*2)/R));
+    const gridW = cellSize * C;
+    const gridH = cellSize * R;
+    const ox = Math.floor((w - gridW)/2);
+    const oy = Math.floor((h - gridH)/2);
+
+    const tol = Math.max(10, Math.floor(cellSize * 0.18));
+
+    const gx = px - ox;
+    const gy = py - oy;
+    if (gx < -tol || gy < -tol || gx > gridW + tol || gy > gridH + tol) return;
+
+    const cFloat = gx / cellSize;
+    const rFloat = gy / cellSize;
+
+    const cLine = Math.round(cFloat);
+    const rLine = Math.round(rFloat);
+
+    const xLine = cLine * cellSize;
+    const yLine = rLine * cellSize;
+
+    const dx = Math.abs(gx - xLine);
+    const dy = Math.abs(gy - yLine);
+
+    // vertical edge toggle
+    if (dx < dy && dx <= tol) {
+      const c = cLine;
+      if (c < 0 || c > C) return;
+      const r = Math.floor(gy / cellSize);
+      if (r < 0 || r >= R) return;
+
+      const isOuter = (c === 0 || c === C);
+      if (isOuter) {
+        verticalWalls[r][c] = true; // keep boundary
+      } else {
+        verticalWalls[r][c] = !verticalWalls[r][c];
+      }
+      draw();
+      return;
+    }
+
+    // horizontal edge toggle
+    if (dy <= tol) {
+      const r = rLine;
+      if (r < 0 || r > R) return;
+      const c = Math.floor(gx / cellSize);
+      if (c < 0 || c >= C) return;
+
+      const isOuter = (r === 0 || r === R);
+      if (isOuter) {
+        horizontalWalls[r][c] = true; // keep boundary
+      } else {
+        horizontalWalls[r][c] = !horizontalWalls[r][c];
+      }
+      draw();
+    }
+  }
+
+  // UI
+  document.getElementById('reset').addEventListener('click', () => {
+    initWalls(Number(elRows.value), Number(elCols.value));
+    resetInteriorWalls();
+    draw();
+  });
+
+  document.getElementById('random').addEventListener('click', () => {
+    initWalls(Number(elRows.value), Number(elCols.value));
+    randomize();
+    draw();
+  });
+
+  document.getElementById('outerOn').addEventListener('click', () => {
+    countOuter = true;
+    draw();
+  });
+  document.getElementById('outerOff').addEventListener('click', () => {
+    countOuter = false;
+    draw();
+  });
+
+  [elSizes, elRows, elCols].forEach(el => el.addEventListener('change', () => {
+    initWalls(Number(elRows.value), Number(elCols.value));
+    resetInteriorWalls();
+    draw();
+  }));
+
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    toggleWallAt(px, py);
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+
+  // start
+  initWalls(R, C);
+  resetInteriorWalls();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
