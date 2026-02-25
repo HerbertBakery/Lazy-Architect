@@ -3,103 +3,442 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Lazy Architect (MathPickle-style) – Wall Puzzle</title>
+  <title>Lazy Architect – Wall Puzzle (Classroom Explorer)</title>
   <style>
-    :root { --bg:#0b0f14; --panel:#121a22; --text:#e7eef7; --muted:#9fb2c7; --accent:#68d391; --danger:#f56565; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
-    .wrap { display:grid; grid-template-columns: 380px 1fr; gap:18px; padding:18px; }
-    .card { background:var(--panel); border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:14px; }
-    h1 { font-size:18px; margin:0 0 10px; }
-    label { display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
-    input, button { width:100%; box-sizing:border-box; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); color:var(--text); padding:10px 10px; }
-    button { cursor:pointer; background:rgba(104,211,145,.14); border-color:rgba(104,211,145,.45); }
-    button:hover { background:rgba(104,211,145,.22); }
-    .row { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-    .small { font-size:12px; color:var(--muted); line-height:1.35; }
-    .pill { display:inline-block; padding:3px 8px; border-radius:999px; font-size:12px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); }
-    .status { padding:10px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.03); }
-    .ok { border-color: rgba(104,211,145,.6); background: rgba(104,211,145,.12); }
-    .bad { border-color: rgba(245,101,101,.6); background: rgba(245,101,101,.12); }
-    canvas { width:100%; height: calc(100vh - 36px); background: #0f141b; border:1px solid rgba(255,255,255,.08); border-radius:14px; }
-    .hint { margin-top:10px; }
-    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-           padding:2px 6px; border:1px solid rgba(255,255,255,.18); border-radius:8px; background:rgba(255,255,255,.05); }
-    .divider { height:1px; background: rgba(255,255,255,.10); margin:12px 0; }
+    :root{
+      --bg:#07101a;
+      --panel:#0d1824;
+      --panel2:#0b1420;
+      --text:#e8eef6;
+      --muted:#9fb0c3;
+      --line:#132233;
+      --accent:#68d391;
+      --danger:#f87171;
+      --warn:#fbbf24;
+      --good:#34d399;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      overflow:hidden;
+    }
+
+    .app{
+      display:grid;
+      grid-template-columns:auto 1fr;
+      height:100vh;
+      width:100vw;
+      gap:0;
+    }
+
+    .sidebar{
+      width:0;
+      overflow:hidden;
+      background:linear-gradient(180deg, rgba(13,24,36,.98), rgba(8,16,27,.98));
+      border-right:1px solid rgba(255,255,255,.06);
+      transition:width .22s ease;
+      position:relative;
+      z-index:4;
+    }
+    .sidebar.open{
+      width:340px;
+    }
+    .sidebarInner{
+      width:340px;
+      height:100%;
+      padding:84px 14px 14px; /* top padding prevents toolbar overlap */
+      overflow:auto;
+    }
+
+    .toolbar{
+      position:fixed;
+      top:10px;
+      left:10px;
+      z-index:20;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      background:rgba(6,12,20,.82);
+      border:1px solid rgba(255,255,255,.09);
+      border-radius:16px;
+      padding:8px;
+      backdrop-filter: blur(6px);
+      box-shadow:0 8px 24px rgba(0,0,0,.25);
+    }
+
+    .iconBtn, .btn{
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      border-radius:10px;
+      cursor:pointer;
+      transition:.14s ease;
+      user-select:none;
+    }
+    .iconBtn{
+      width:36px;height:36px;
+      display:grid;place-items:center;
+      font-size:16px;
+    }
+    .btn{
+      padding:8px 12px;
+      font-size:13px;
+      line-height:1;
+      min-height:36px;
+    }
+    .btn:hover,.iconBtn:hover{ background:rgba(255,255,255,.08); }
+    .btn.primary{
+      background:rgba(104,211,145,.12);
+      border-color:rgba(104,211,145,.35);
+    }
+    .btn.primary:hover{ background:rgba(104,211,145,.18); }
+
+    h1{
+      margin:0 0 10px;
+      font-size:14px;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      letter-spacing:.2px;
+    }
+    h2{
+      margin:14px 0 8px;
+      font-size:12px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+
+    .small{ font-size:12px; color:var(--muted); line-height:1.35; }
+    .tiny{ font-size:11px; color:var(--muted); line-height:1.3; }
+    .row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .stack{ display:grid; gap:8px; }
+
+    label{
+      display:block;
+      font-size:11px;
+      color:var(--muted);
+      margin:4px 0 4px;
+    }
+    input, select{
+      width:100%;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      padding:9px 10px;
+      font-size:13px;
+    }
+
+    .card{
+      background:rgba(255,255,255,.02);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      padding:10px;
+    }
+
+    .divider{
+      height:1px;
+      background:rgba(255,255,255,.08);
+      margin:10px 0;
+    }
+
+    .canvasWrap{
+      position:relative;
+      height:100%;
+      width:100%;
+      background:radial-gradient(circle at 50% 30%, rgba(17,33,54,.20), transparent 60%), #07101a;
+      overflow:hidden;
+    }
+    canvas{
+      display:block;
+      width:100%;
+      height:100%;
+      background:transparent;
+      cursor:pointer;
+    }
+
+    .overlayInfo{
+      position:absolute;
+      left:14px;
+      bottom:14px;
+      z-index:3;
+      background:rgba(4,10,16,.55);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      padding:10px 12px;
+      backdrop-filter: blur(5px);
+      max-width:min(560px, calc(100vw - 28px));
+      pointer-events:none;
+    }
+    .overlayInfo .line1{
+      font-size:16px;
+      font-weight:700;
+      letter-spacing:.2px;
+      margin-bottom:4px;
+    }
+    .overlayInfo .line2{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .scoreBanner{
+      position:absolute;
+      right:18px;
+      bottom:18px;
+      z-index:3;
+      font-size:20px;
+      color:rgba(232,238,246,.9);
+      text-shadow:0 2px 10px rgba(0,0,0,.35);
+      pointer-events:none;
+      text-align:right;
+      max-width:60vw;
+    }
+    .scoreBanner .muted{
+      font-size:13px;
+      color:rgba(159,176,195,.95);
+      margin-bottom:2px;
+    }
+
+    .flash{
+      position:absolute;
+      top:14px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:21;
+      min-width:260px;
+      max-width:80vw;
+      padding:10px 14px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(10,17,28,.88);
+      box-shadow:0 8px 30px rgba(0,0,0,.35);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .18s ease, transform .18s ease;
+      font-size:14px;
+      text-align:center;
+    }
+    .flash.show{
+      opacity:1;
+      transform:translateX(-50%) translateY(0);
+    }
+    .flash.bad{
+      border-color: rgba(248,113,113,.45);
+      background: rgba(67,21,26,.90);
+    }
+    .flash.good{
+      border-color: rgba(52,211,153,.45);
+      background: rgba(16,55,45,.90);
+    }
+    .flash.warn{
+      border-color: rgba(251,191,36,.45);
+      background: rgba(63,45,14,.90);
+    }
+
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size:11px;
+      padding:1px 6px;
+      border-radius:7px;
+      border:1px solid rgba(255,255,255,.15);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+    }
+
+    .checkbox{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      font-size:12px;
+      color:var(--text);
+      margin-top:6px;
+    }
+    .checkbox input{ width:auto; }
+
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .collapsible {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height .2s ease, opacity .15s ease;
+    }
+    .collapsible.open {
+      max-height: 2000px;
+      opacity: 1;
+    }
+
+    .miniRule {
+      font-size: 15px;
+      line-height: 1.45;
+      color: #e8eef6;
+      font-weight: 600;
+      padding: 2px 0;
+    }
+
+    .subtleBtn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.03);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .subtleBtn:hover {
+      background: rgba(255,255,255,.06);
+    }
+
+    @media (max-width: 800px){
+      .sidebar.open{ width:min(90vw,340px); }
+      .sidebarInner{ width:min(90vw,340px); }
+      .scoreBanner{ font-size:16px; right:12px; bottom:12px; }
+      .overlayInfo{ padding:8px 10px; }
+      .overlayInfo .line1{ font-size:14px; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>Lazy Architect – Wall Puzzle</h1>
-      <div class="small">
-        Click near an <b>grid edge</b> to toggle a wall. Rooms are connected cell regions separated by walls.
-        <br><br>
-        <b>Score:</b> walls are counted as <b>continuous straight lines</b> (runs), not tiny segments.
-        <br>
-        <b>Extra space:</b> any leftover rooms are <b>ignored</b>. Only target rooms matter.
-      </div>
+  <div class="toolbar" id="topToolbar">
+    <button class="iconBtn" id="toggleSidebarBtn" title="Show / hide rules">🍀</button>
+    <button class="btn" id="undoBtn" title="Undo last wall change">Undo</button>
+    <button class="btn primary" id="resetBtn" title="Reset current puzzle">Reset</button>
+  </div>
 
-      <label>Target room sizes (comma-separated)</label>
-      <input id="sizes" value="1,2,3,4,5,6" />
+  <div class="flash" id="flash"></div>
 
-      <div class="row">
-        <div>
-          <label>Grid rows</label>
-          <input id="rows" type="number" min="2" max="30" value="6" />
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebarInner">
+        <h1><span style="font-size:16px;">🍀</span> Lazy Architect</h1>
+
+        <!-- RULES: SIMPLE ONLY -->
+        <div class="card">
+          <div class="miniRule">
+            Your homes don’t have windows.<br>
+            They don’t have doors.<br>
+            You are a lazy architect.<br>
+            Use as few walls as possible.
+          </div>
+
+          <div class="divider"></div>
+
+          <button class="subtleBtn" id="toggleTeacherBtn" type="button">▸ Teacher panel</button>
+
+          <div id="teacherPanelWrap" class="collapsible" style="margin-top:8px;">
+            <div class="card stack" style="margin-top:4px;">
+              <div class="small">Optional controls for setup and classroom demos. Hide this panel during class if you want students to discover the rules.</div>
+
+              <div>
+                <label>Game mode</label>
+                <select id="modeSelect">
+                  <option value="sequential" selected>Sequential explorer (1,2,3,...)</option>
+                  <option value="classic">Classic targets (comma-separated)</option>
+                  <option value="energetic">Energetic architect (maximize walls with targets)</option>
+                </select>
+              </div>
+
+              <div id="classicControls" class="stack" style="display:none;">
+                <div>
+                  <label>Target room sizes (comma-separated)</label>
+                  <input id="sizes" value="1,2,3,4,5,6" />
+                </div>
+                <div class="row">
+                  <div>
+                    <label>Grid rows (classic)</label>
+                    <input id="rows" type="number" min="4" max="80" value="16" />
+                  </div>
+                  <div>
+                    <label>Grid cols (classic)</label>
+                    <input id="cols" type="number" min="4" max="80" value="18" />
+                  </div>
+                </div>
+                <div class="row">
+                  <button class="btn" id="applyClassicGridBtn">Apply classic grid</button>
+                  <button class="btn" id="randomBtn">Randomize a bit</button>
+                </div>
+              </div>
+
+              <div id="sequentialControls" class="stack">
+                <div class="row">
+                  <div>
+                    <label>Start at room size</label>
+                    <input id="seqStart" type="number" min="1" max="999" value="1" />
+                  </div>
+                  <div>
+                    <label>Stop after (optional)</label>
+                    <input id="seqGoal" type="number" min="0" max="999" value="0" />
+                  </div>
+                </div>
+                <div class="row">
+                  <button class="btn" id="seed1Btn">Seed center 1×1</button>
+                  <button class="btn" id="clearProgressBtn">Clear progress only</button>
+                </div>
+              </div>
+
+              <div>
+                <label>Colouring</label>
+                <select id="paletteMode">
+                  <option value="4">IBM-muted style (4 colours + fallback)</option>
+                  <option value="5" selected>IBM-muted style (5 colours)</option>
+                </select>
+              </div>
+
+              <div class="row">
+                <div>
+                  <label>Count outer boundary walls?</label>
+                  <select id="countOuterSelect">
+                    <option value="no" selected>No (ignore)</option>
+                    <option value="yes">Yes (count)</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Lock progression</label>
+                  <select id="lockProgressSelect">
+                    <option value="yes" selected>Yes</option>
+                    <option value="no">No (live)</option>
+                  </select>
+                </div>
+              </div>
+
+              <label class="checkbox"><input id="showOuterBoundary" type="checkbox" /> Draw board boundary frame</label>
+              <label class="checkbox"><input id="showGridLines" type="checkbox" checked /> Show background grid</label>
+              <label class="checkbox"><input id="showRoomNumbers" type="checkbox" checked /> Show room numbers</label>
+              <label class="checkbox"><input id="showMatchedOnly" type="checkbox" /> Colour matched rooms only (classic mode)</label>
+              <label class="checkbox"><input id="autoFitToggle" type="checkbox" checked /> Auto-fit / zoom as build grows</label>
+              <label class="checkbox"><input id="soundToggle" type="checkbox" checked /> Beep on mistakes / success</label>
+
+              <div class="divider"></div>
+              <div class="tiny">
+                Keyboard: <span class="kbd">Ctrl/Cmd+Z</span> undo, <span class="kbd">Ctrl/Cmd+Y</span> redo, <span class="kbd">?</span> toggle rules.
+              </div>
+            </div>
+          </div>
         </div>
-        <div>
-          <label>Grid cols</label>
-          <input id="cols" type="number" min="2" max="30" value="6" />
-        </div>
       </div>
+    </aside>
 
-      <label>Count outer boundary walls?</label>
-      <div class="row">
-        <button id="outerOn" title="Outer boundary counts toward wall total">Yes (count)</button>
-        <button id="outerOff" title="Outer boundary does NOT count toward wall total">No (ignore)</button>
-      </div>
-
-      <label>Actions</label>
-      <div class="row">
-        <button id="reset">Reset (no interior walls)</button>
-        <button id="random">Randomize a bit</button>
-      </div>
-
-      <div class="divider"></div>
-
-      <label>Status</label>
-      <div id="status" class="status bad">
-        <div style="margin-bottom:8px;">
-          <span class="pill">Progress</span>
-          <span id="progressText">—</span>
-        </div>
-        <div>
-          <span class="pill">Wall lines</span>
-          <span id="wallsText">—</span>
-        </div>
-        <div style="margin-top:8px;">
-          <span class="pill">Found target rooms</span>
-          <span id="foundText">—</span>
-        </div>
-        <div style="margin-top:6px;">
-          <span class="pill">Remaining</span>
-          <span id="remainingText">—</span>
-        </div>
-      </div>
-
-      <div class="hint small">
-        Notes:
-        <ul>
-          <li>Completed (counting) rooms get colored + labeled on the grid.</li>
-          <li>Extras are allowed (hallways/atrium/etc.) and ignored.</li>
-          <li>Try <span class="kbd">3×7</span> if you want a “tight” build for 1–6 (sum 21).</li>
-        </ul>
-      </div>
-    </div>
-
-    <div>
+    <main class="canvasWrap" id="canvasWrap">
       <canvas id="c"></canvas>
-    </div>
+
+      <div class="overlayInfo" id="overlayInfo">
+        <div class="line1" id="overlayTitle">Lazy Architect</div>
+        <div class="line2" id="overlaySub">Build rooms in order: 1, 2, 3, ... — use as few walls as possible.</div>
+      </div>
+
+      <div class="scoreBanner" id="scoreBanner">
+        <div class="muted">Wall count</div>
+        <div id="scoreText">0 horizontal + 0 vertical = 0 walls</div>
+      </div>
+    </main>
   </div>
 
 <script>
@@ -107,53 +446,103 @@
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
 
+  // UI refs
+  const sidebar = document.getElementById('sidebar');
+  const canvasWrap = document.getElementById('canvasWrap');
+  const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const flashEl = document.getElementById('flash');
+
+  const toggleTeacherBtn = document.getElementById('toggleTeacherBtn');
+  const teacherPanelWrap = document.getElementById('teacherPanelWrap');
+
+  const modeSelect = document.getElementById('modeSelect');
+  const classicControls = document.getElementById('classicControls');
+  const sequentialControls = document.getElementById('sequentialControls');
+  const applyClassicGridBtn = document.getElementById('applyClassicGridBtn');
+
   const elSizes = document.getElementById('sizes');
-  const elRows  = document.getElementById('rows');
-  const elCols  = document.getElementById('cols');
+  const elRows = document.getElementById('rows');
+  const elCols = document.getElementById('cols');
 
-  const elStatus = document.getElementById('status');
-  const elProgressText = document.getElementById('progressText');
-  const elWallsText = document.getElementById('wallsText');
-  const elFoundText = document.getElementById('foundText');
-  const elRemainingText = document.getElementById('remainingText');
+  const seqStartEl = document.getElementById('seqStart');
+  const seqGoalEl = document.getElementById('seqGoal');
+  const seed1Btn = document.getElementById('seed1Btn');
+  const clearProgressBtn = document.getElementById('clearProgressBtn');
 
-  let countOuter = true;
+  const paletteModeEl = document.getElementById('paletteMode');
+  const countOuterSelect = document.getElementById('countOuterSelect');
+  const lockProgressSelect = document.getElementById('lockProgressSelect');
+  const showOuterBoundaryEl = document.getElementById('showOuterBoundary');
+  const showGridLinesEl = document.getElementById('showGridLines');
+  const showRoomNumbersEl = document.getElementById('showRoomNumbers');
+  const showMatchedOnlyEl = document.getElementById('showMatchedOnly');
+  const autoFitToggleEl = document.getElementById('autoFitToggle');
+  const soundToggleEl = document.getElementById('soundToggle');
 
-  // Walls:
-  // verticalWalls[r][c] => wall on vertical edge between (r,c-1) and (r,c), c = 0..C
-  // horizontalWalls[r][c] => wall on horizontal edge between (r-1,c) and (r,c), r = 0..R
-  let R = 6, C = 6;
-  let verticalWalls = [];
-  let horizontalWalls = [];
+  const scoreText = document.getElementById('scoreText');
+  const overlayTitle = document.getElementById('overlayTitle');
+  const overlaySub = document.getElementById('overlaySub');
 
-  // Palette for target room fills (by size, repeats safely)
-  const palette = [
-    "rgba(138,180,248,0.28)", // 1
-    "rgba(104,211,145,0.28)", // 2
-    "rgba(246,224,94,0.28)",  // 3
-    "rgba(237,137,54,0.28)",  // 4
-    "rgba(245,101,101,0.28)", // 5
-    "rgba(183,148,244,0.28)", // 6
-    "rgba(79,209,197,0.28)",  // 7
-    "rgba(252,129,129,0.28)", // 8
-    "rgba(160,174,192,0.28)"  // 9+
+  // Logical board
+  let R = 48, C = 48;
+  let verticalWalls = [];   // [r][c] c=0..C
+  let horizontalWalls = []; // [r][c] r=0..R
+  let boundaryEnforced = true;
+
+  // View state
+  let view = { ox: 0, oy: 0, cell: 28, targetOx:0, targetOy:0, targetCell:28 };
+  let drawingRAF = 0;
+
+  // History for undo/redo
+  let history = [];
+  let redo = [];
+
+  // Sequential mode state
+  let sequential = {
+    completed: new Set(),
+    next: 1,
+    goal: 0,
+    wrongOrderFlashStamp: 0,
+    lastCelebrated: 0
+  };
+
+  let mode = 'sequential';
+  let countOuter = false;
+
+  // IBM-ish muted palette
+  const ibmMuted5 = [
+    "rgba(110, 152, 245, 0.34)",
+    "rgba(130, 108, 232, 0.34)",
+    "rgba(234, 47, 138, 0.30)",
+    "rgba(255, 115, 0, 0.30)",
+    "rgba(245, 181, 32, 0.30)"
   ];
+  const ibmMuted4 = [
+    "rgba(110, 152, 245, 0.34)",
+    "rgba(130, 108, 232, 0.34)",
+    "rgba(255, 115, 0, 0.30)",
+    "rgba(245, 181, 32, 0.30)"
+  ];
+  const neutralFill = "rgba(179, 194, 214, 0.26)";
 
-  function colorForSize(size) {
-    if (size <= 0) return "rgba(255,255,255,0.10)";
-    const idx = Math.min(size, palette.length) - 1;
-    return palette[idx];
+  function activePalette() {
+    return paletteModeEl.value === '4' ? ibmMuted4 : ibmMuted5;
   }
 
   function parseTargets() {
-    const raw = elSizes.value.trim();
+    const raw = (elSizes.value || "").trim();
     if (!raw) return [];
     return raw.split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
-      .map(n => Number(n))
+      .map(s => Number(s.trim()))
       .filter(n => Number.isFinite(n) && n > 0)
       .map(n => Math.floor(n));
+  }
+
+  function clamp(n, lo, hi){
+    return Math.max(lo, Math.min(hi, n));
   }
 
   function initWalls(rows, cols) {
@@ -161,18 +550,22 @@
     verticalWalls = Array.from({length: R}, () => Array(C+1).fill(false));
     horizontalWalls = Array.from({length: R+1}, () => Array(C).fill(false));
 
-    // Outer boundary always present
-    for (let r = 0; r < R; r++) {
-      verticalWalls[r][0] = true;
-      verticalWalls[r][C] = true;
+    if (boundaryEnforced) {
+      for (let r = 0; r < R; r++) {
+        verticalWalls[r][0] = true;
+        verticalWalls[r][C] = true;
+      }
+      for (let c = 0; c < C; c++) {
+        horizontalWalls[0][c] = true;
+        horizontalWalls[R][c] = true;
+      }
     }
-    for (let c = 0; c < C; c++) {
-      horizontalWalls[0][c] = true;
-      horizontalWalls[R][c] = true;
-    }
+
+    history = [];
+    redo = [];
   }
 
-  function resetInteriorWalls() {
+  function clearInteriorWalls() {
     for (let r = 0; r < R; r++) {
       for (let c = 1; c < C; c++) verticalWalls[r][c] = false;
     }
@@ -181,88 +574,114 @@
     }
   }
 
+  function resetSequentialProgress() {
+    sequential.completed.clear();
+    sequential.next = clamp(Number(seqStartEl.value) || 1, 1, 999);
+    sequential.goal = Math.max(0, Number(seqGoalEl.value) || 0);
+    sequential.lastCelebrated = sequential.next - 1;
+  }
+
+  function resetBoardForCurrentMode() {
+    if (mode === 'classic' || mode === 'energetic') {
+      const rr = clamp(Number(elRows.value)||16, 4, 80);
+      const cc = clamp(Number(elCols.value)||18, 4, 80);
+      initWalls(rr, cc);
+      clearInteriorWalls();
+    } else {
+      initWalls(48, 48);
+      clearInteriorWalls();
+      resetSequentialProgress();
+      seedCentralOneByOne(false);
+    }
+    fitView(true);
+    requestDraw();
+  }
+
+  function seedCentralOneByOne(pushHistory = true) {
+    const r = Math.floor(R/2), c = Math.floor(C/2);
+    const changes = [];
+
+    function setV(rr, cc, val){
+      if (rr < 0 || rr >= R || cc < 0 || cc > C) return;
+      const old = verticalWalls[rr][cc];
+      if (old === val) return;
+      verticalWalls[rr][cc] = val;
+      changes.push({kind:'v', r:rr, c:cc, from:old, to:val});
+    }
+    function setH(rr, cc, val){
+      if (rr < 0 || rr > R || cc < 0 || cc >= C) return;
+      const old = horizontalWalls[rr][cc];
+      if (old === val) return;
+      horizontalWalls[rr][cc] = val;
+      changes.push({kind:'h', r:rr, c:cc, from:old, to:val});
+    }
+
+    setV(r, c, true);
+    setV(r, c+1, true);
+    setH(r, c, true);
+    setH(r+1, c, true);
+
+    if (changes.length && pushHistory) {
+      history.push(changes);
+      redo = [];
+    }
+  }
+
   function randomize() {
-    resetInteriorWalls();
-    const tries = Math.floor((R*C) * 0.9);
+    clearInteriorWalls();
+    const tries = Math.floor((R*C) * 0.16);
     for (let i = 0; i < tries; i++) {
       if (Math.random() < 0.5) {
         const r = Math.floor(Math.random()*R);
         const c = 1 + Math.floor(Math.random()*(C-1));
-        verticalWalls[r][c] = Math.random() < 0.33;
+        verticalWalls[r][c] = Math.random() < 0.28;
       } else {
         const r = 1 + Math.floor(Math.random()*(R-1));
         const c = Math.floor(Math.random()*C);
-        horizontalWalls[r][c] = Math.random() < 0.33;
+        horizontalWalls[r][c] = Math.random() < 0.28;
       }
     }
   }
 
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
+    const nextW = Math.max(1, Math.floor(rect.width * dpr));
+    const nextH = Math.max(1, Math.floor(rect.height * dpr));
+
+    if (canvas.width !== nextW || canvas.height !== nextH) {
+      canvas.width = nextW;
+      canvas.height = nextH;
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw();
   }
 
-  // Count continuous straight wall "lines" (runs)
-  function wallLineCount() {
-    let totalRuns = 0;
+  let resizeObserver = null;
+  let sidebarTransitionTimer = null;
 
-    // vertical runs by grid line c
-    for (let c = 0; c <= C; c++) {
-      const isOuterLine = (c === 0 || c === C);
-      if (isOuterLine && !countOuter) continue;
-
-      let inRun = false;
-      for (let r = 0; r < R; r++) {
-        const present = verticalWalls[r][c] === true;
-        if (present && !inRun) { totalRuns++; inRun = true; }
-        else if (!present && inRun) { inRun = false; }
-      }
-    }
-
-    // horizontal runs by grid line r
-    for (let r = 0; r <= R; r++) {
-      const isOuterLine = (r === 0 || r === R);
-      if (isOuterLine && !countOuter) continue;
-
-      let inRun = false;
-      for (let c = 0; c < C; c++) {
-        const present = horizontalWalls[r][c] === true;
-        if (present && !inRun) { totalRuns++; inRun = true; }
-        else if (!present && inRun) { inRun = false; }
-      }
-    }
-
-    return totalRuns;
+  function forceCanvasResync() {
+    resizeCanvas();
+    if (autoFitToggleEl.checked) fitView(true);
+    requestDraw();
   }
 
-  // Compute rooms as components with cell lists
-  function computeRoomObjects() {
+  function hasWallBetween(r1,c1,r2,c2) {
+    if (r1 === r2 && c2 === c1+1) return verticalWalls[r1][c1+1];
+    if (r1 === r2 && c2 === c1-1) return verticalWalls[r1][c1];
+    if (c1 === c2 && r2 === r1+1) return horizontalWalls[r1+1][c1];
+    if (c1 === c2 && r2 === r1-1) return horizontalWalls[r1][c1];
+    return true;
+  }
+
+  function computeRooms() {
     const seen = Array.from({length:R}, () => Array(C).fill(false));
     const rooms = [];
-
-    const dirs = [
-      {dr:0, dc:1},
-      {dr:0, dc:-1},
-      {dr:1, dc:0},
-      {dr:-1, dc:0},
-    ];
-
-    function hasWallBetween(r1,c1,r2,c2) {
-      if (r1 === r2 && c2 === c1+1) return verticalWalls[r1][c1+1];
-      if (r1 === r2 && c2 === c1-1) return verticalWalls[r1][c1];
-      if (c1 === c2 && r2 === r1+1) return horizontalWalls[r1+1][c1];
-      if (c1 === c2 && r2 === r1-1) return horizontalWalls[r1][c1];
-      return true;
-    }
+    const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
 
     for (let r = 0; r < R; r++) {
       for (let c = 0; c < C; c++) {
         if (seen[r][c]) continue;
-
         const stack = [[r,c]];
         seen[r][c] = true;
         const cells = [];
@@ -270,8 +689,7 @@
         while (stack.length) {
           const [cr, cc] = stack.pop();
           cells.push([cr, cc]);
-
-          for (const {dr, dc} of dirs) {
+          for (const [dr, dc] of dirs) {
             const nr = cr + dr, nc = cc + dc;
             if (nr < 0 || nr >= R || nc < 0 || nc >= C) continue;
             if (seen[nr][nc]) continue;
@@ -281,29 +699,132 @@
           }
         }
 
-        rooms.push({ size: cells.length, cells });
+        let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+        for (const [rr,cc] of cells) {
+          if (rr < minR) minR = rr;
+          if (rr > maxR) maxR = rr;
+          if (cc < minC) minC = cc;
+          if (cc > maxC) maxC = cc;
+        }
+
+        rooms.push({
+          size: cells.length,
+          cells,
+          bbox: {minR,maxR,minC,maxC},
+          touchesBoundary: (minR===0 || minC===0 || maxR===R-1 || maxC===C-1)
+        });
       }
     }
-
     return rooms;
   }
 
-  // Match rooms to targets (extras ignored).
-  // Returns list of matched room indices and counts found/remaining.
+  function getRelevantRooms(rooms) {
+    if (mode === 'sequential') {
+      return rooms.filter(room => !room.touchesBoundary);
+    }
+    const limit = Math.floor(R*C*0.4);
+    return rooms.filter(room => room.size <= limit);
+  }
+
+  function buildAdjacency(rooms) {
+    const idxByCell = Array.from({length:R}, () => Array(C).fill(-1));
+    rooms.forEach((room, i) => {
+      for (const [r,c] of room.cells) idxByCell[r][c] = i;
+    });
+
+    const adj = Array.from({length:rooms.length}, () => new Set());
+
+    for (let r = 0; r < R; r++) {
+      for (let c = 0; c < C; c++) {
+        const a = idxByCell[r][c];
+        if (a < 0) continue;
+        if (c+1 < C) {
+          const b = idxByCell[r][c+1];
+          if (b >= 0 && b !== a && verticalWalls[r][c+1]) {
+            adj[a].add(b); adj[b].add(a);
+          }
+        }
+        if (r+1 < R) {
+          const b = idxByCell[r+1][c];
+          if (b >= 0 && b !== a && horizontalWalls[r+1][c]) {
+            adj[a].add(b); adj[b].add(a);
+          }
+        }
+      }
+    }
+    return adj;
+  }
+
+  function assignRegionColours(rooms) {
+    const palette = activePalette();
+    const adj = buildAdjacency(rooms);
+    const order = [...rooms.keys()].sort((a,b) => adj[b].size - adj[a].size || rooms[b].size - rooms[a].size);
+    const colorIndex = Array(rooms.length).fill(-1);
+
+    function canUse(node, ci) {
+      for (const nb of adj[node]) if (colorIndex[nb] === ci) return false;
+      return true;
+    }
+
+    function backtrack(k) {
+      if (k >= order.length) return true;
+      const node = order[k];
+      for (let ci = 0; ci < palette.length; ci++) {
+        if (!canUse(node, ci)) continue;
+        colorIndex[node] = ci;
+        if (backtrack(k+1)) return true;
+        colorIndex[node] = -1;
+      }
+      return false;
+    }
+
+    const ok = backtrack(0);
+    if (!ok) {
+      for (const node of order) {
+        let placed = false;
+        for (let ci = 0; ci < palette.length; ci++) {
+          if (canUse(node, ci)) { colorIndex[node] = ci; placed = true; break; }
+        }
+        if (!placed) colorIndex[node] = -1;
+      }
+    }
+    return colorIndex.map(ci => ci >= 0 ? palette[ci] : neutralFill);
+  }
+
+  function countWallRunsDetailed() {
+    let vRuns = 0, hRuns = 0;
+
+    for (let c = 0; c <= C; c++) {
+      const isOuter = (c === 0 || c === C);
+      if (isOuter && !countOuter) continue;
+      let inRun = false;
+      for (let r = 0; r < R; r++) {
+        const present = !!verticalWalls[r][c];
+        if (present && !inRun) { vRuns++; inRun = true; }
+        else if (!present && inRun) inRun = false;
+      }
+    }
+
+    for (let r = 0; r <= R; r++) {
+      const isOuter = (r === 0 || r === R);
+      if (isOuter && !countOuter) continue;
+      let inRun = false;
+      for (let c = 0; c < C; c++) {
+        const present = !!horizontalWalls[r][c];
+        if (present && !inRun) { hRuns++; inRun = true; }
+        else if (!present && inRun) inRun = false;
+      }
+    }
+
+    return { hRuns, vRuns, total: hRuns + vRuns };
+  }
+
   function matchTargets(rooms, targets) {
-    // Build required counts map
-    const need = new Map();
-    for (const t of targets) need.set(t, (need.get(t) || 0) + 1);
-
-    // Track which rooms are used
     const used = Array(rooms.length).fill(false);
-    const matched = []; // {roomIndex, size}
-
-    // Greedy: match smaller targets first so 1s/2s don't get blocked (usually safer)
+    const matched = [];
     const sortedTargets = [...targets].sort((a,b)=>a-b);
 
     for (const t of sortedTargets) {
-      // find an unused room of size t
       let foundIdx = -1;
       for (let i = 0; i < rooms.length; i++) {
         if (used[i]) continue;
@@ -312,274 +833,661 @@
       if (foundIdx !== -1) {
         used[foundIdx] = true;
         matched.push({ roomIndex: foundIdx, size: t });
-        need.set(t, need.get(t) - 1);
-        if (need.get(t) === 0) need.delete(t);
       }
     }
 
-    // Build found counts
     const foundCounts = new Map();
-    for (const m of matched) foundCounts.set(m.size, (foundCounts.get(m.size) || 0) + 1);
+    for (const m of matched) foundCounts.set(m.size, (foundCounts.get(m.size)||0) + 1);
 
-    // Remaining counts
     const remainingCounts = new Map();
-    for (const t of targets) remainingCounts.set(t, (remainingCounts.get(t) || 0) + 1);
-    for (const [sz, cnt] of foundCounts.entries()) {
-      remainingCounts.set(sz, remainingCounts.get(sz) - cnt);
-      if (remainingCounts.get(sz) <= 0) remainingCounts.delete(sz);
+    for (const t of targets) remainingCounts.set(t, (remainingCounts.get(t)||0) + 1);
+    for (const [k,v] of foundCounts.entries()) {
+      remainingCounts.set(k, remainingCounts.get(k) - v);
+      if (remainingCounts.get(k) <= 0) remainingCounts.delete(k);
     }
 
-    const completed = remainingCounts.size === 0 && targets.length > 0;
-
-    return { matched, used, foundCounts, remainingCounts, completed };
+    return {
+      matched,
+      used,
+      foundCounts,
+      remainingCounts,
+      completed: targets.length > 0 && remainingCounts.size === 0
+    };
   }
 
-  function formatCounts(map) {
-    if (!map || map.size === 0) return "none";
-    const entries = [...map.entries()].sort((a,b)=>a[0]-b[0]);
-    return entries.map(([k,v]) => v === 1 ? `${k}` : `${k}×${v}`).join(", ");
+  function currentSequentialFoundSizes(rooms) {
+    const counts = new Map();
+    for (const room of rooms) counts.set(room.size, (counts.get(room.size)||0)+1);
+    return counts;
   }
 
-  function updateStatus(rooms, match, wallLines, targets) {
-    elWallsText.textContent = `${wallLines}`;
+  function evaluateSequentialProgress(rooms) {
+    const counts = currentSequentialFoundSizes(rooms);
 
-    const foundText = formatCounts(match.foundCounts);
-    const remainingText = formatCounts(match.remainingCounts);
-
-    elFoundText.textContent = foundText;
-    elRemainingText.textContent = remainingText;
-
-    if (targets.length === 0) {
-      elProgressText.textContent = "Enter targets to start.";
-      elStatus.classList.remove('ok','bad');
-      return;
-    }
-
-    if (match.completed) {
-      elProgressText.innerHTML = `<b>COMPLETED</b> ✅ — Score: <b>${wallLines}</b> wall lines`;
-      elStatus.classList.add('ok');
-      elStatus.classList.remove('bad');
+    if (lockProgressSelect.value === 'yes') {
+      while (counts.has(sequential.next) && (sequential.goal === 0 || sequential.next <= sequential.goal)) {
+        sequential.completed.add(sequential.next);
+        if (sequential.next > sequential.lastCelebrated) {
+          sequential.lastCelebrated = sequential.next;
+          flash(`✅ Great! You made room ${sequential.next}.`, 'good', 1100);
+          beep('good');
+        }
+        sequential.next++;
+        if (sequential.goal > 0 && sequential.next > sequential.goal) break;
+      }
     } else {
-      const have = targets.length - [...match.remainingCounts.values()].reduce((a,b)=>a+b,0);
-      elProgressText.textContent = `In progress — satisfied ${have}/${targets.length} target rooms`;
-      elStatus.classList.add('bad');
-      elStatus.classList.remove('ok');
+      const start = clamp(Number(seqStartEl.value)||1, 1, 999);
+      let k = start;
+      while (counts.has(k)) k++;
+      sequential.next = k;
+      sequential.completed = new Set();
+      for (let i = start; i < k; i++) sequential.completed.add(i);
+    }
+
+    if (!counts.has(sequential.next)) {
+      let largerExists = false;
+      for (const sz of counts.keys()) if (sz > sequential.next) { largerExists = true; break; }
+      if (largerExists) {
+        const now = performance.now();
+        if (now - sequential.wrongOrderFlashStamp > 850) {
+          sequential.wrongOrderFlashStamp = now;
+          flash(`⚠️ Make room ${sequential.next} before bigger rooms.`, 'bad', 950);
+          beep('bad');
+        }
+      }
+    }
+    return { counts };
+  }
+
+  function labelAnchorForRoom(room) {
+    const set = new Set(room.cells.map(([r,c]) => `${r},${c}`));
+    const dist = new Map();
+    const q = [];
+
+    for (const [r,c] of room.cells) {
+      const neighbors = [[r+1,c],[r-1,c],[r,c+1],[r,c-1]];
+      let boundary = false;
+      for (const [nr,nc] of neighbors) {
+        if (!set.has(`${nr},${nc}`)) { boundary = true; break; }
+      }
+      if (boundary) {
+        const k = `${r},${c}`;
+        dist.set(k, 0);
+        q.push([r,c]);
+      }
+    }
+
+    let qi = 0;
+    while (qi < q.length) {
+      const [r,c] = q[qi++];
+      const d = dist.get(`${r},${c}`);
+      for (const [nr,nc] of [[r+1,c],[r-1,c],[r,c+1],[r,c-1]]) {
+        const key = `${nr},${nc}`;
+        if (!set.has(key)) continue;
+        if (dist.has(key)) continue;
+        dist.set(key, d + 1);
+        q.push([nr,nc]);
+      }
+    }
+
+    let cx = 0, cy = 0;
+    for (const [r,c] of room.cells) { cx += c + 0.5; cy += r + 0.5; }
+    cx /= room.cells.length;
+    cy /= room.cells.length;
+
+    let best = room.cells[0];
+    let bestScore = -Infinity;
+    for (const [r,c] of room.cells) {
+      const d = dist.get(`${r},${c}`) ?? 0;
+      const dx = (c + 0.5) - cx;
+      const dy = (r + 0.5) - cy;
+      const centroidPenalty = dx*dx + dy*dy;
+      const score = d * 100 - centroidPenalty;
+      if (score > bestScore) { bestScore = score; best = [r,c]; }
+    }
+    return { r: best[0], c: best[1] };
+  }
+
+  function getOccupiedContentBounds() {
+    let minGX = Infinity, minGY = Infinity, maxGX = -Infinity, maxGY = -Infinity;
+    let found = false;
+
+    for (let r = 0; r < R; r++) {
+      for (let c = 0; c <= C; c++) {
+        if (!verticalWalls[r][c]) continue;
+        if (!showOuterBoundaryEl.checked && (c===0 || c===C)) continue;
+        found = true;
+        minGX = Math.min(minGX, c);
+        maxGX = Math.max(maxGX, c);
+        minGY = Math.min(minGY, r);
+        maxGY = Math.max(maxGY, r+1);
+      }
+    }
+    for (let r = 0; r <= R; r++) {
+      for (let c = 0; c < C; c++) {
+        if (!horizontalWalls[r][c]) continue;
+        if (!showOuterBoundaryEl.checked && (r===0 || r===R)) continue;
+        found = true;
+        minGX = Math.min(minGX, c);
+        maxGX = Math.max(maxGX, c+1);
+        minGY = Math.min(minGY, r);
+        maxGY = Math.max(maxGY, r);
+      }
+    }
+
+    if (!found) {
+      const cr = Math.floor(R/2), cc = Math.floor(C/2);
+      return { minC: cc-2, maxC: cc+2, minR: cr-2, maxR: cr+2 };
+    }
+
+    return {
+      minC: clamp(minGX - 2, 0, C),
+      maxC: clamp(maxGX + 2, 0, C),
+      minR: clamp(minGY - 2, 0, R),
+      maxR: clamp(maxGY + 2, 0, R)
+    };
+  }
+
+  function fitView(immediate = false) {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 4 || rect.height < 4) return;
+
+    const bounds = getOccupiedContentBounds();
+    const widthCells = Math.max(4, bounds.maxC - bounds.minC);
+    const heightCells = Math.max(4, bounds.maxR - bounds.minR);
+
+    const padPx = 44;
+    const cell = Math.max(10, Math.min(68, Math.floor(Math.min(
+      (rect.width - padPx*2) / widthCells,
+      (rect.height - padPx*2) / heightCells
+    ))));
+
+    const gridW = widthCells * cell;
+    const gridH = heightCells * cell;
+
+    const ox = Math.floor((rect.width - gridW)/2 - bounds.minC * cell);
+    const oy = Math.floor((rect.height - gridH)/2 - bounds.minR * cell);
+
+    view.targetCell = cell;
+    view.targetOx = ox;
+    view.targetOy = oy;
+
+    if (immediate || !Number.isFinite(view.cell) || view.cell === 0) {
+      view.cell = cell; view.ox = ox; view.oy = oy;
+    }
+  }
+
+  function gridToPixel(r, c) {
+    return { x: view.ox + c * view.cell, y: view.oy + r * view.cell };
+  }
+
+  function drawBackgroundGrid() {
+    if (!showGridLinesEl.checked) return;
+    const w = canvas.getBoundingClientRect().width;
+    const h = canvas.getBoundingClientRect().height;
+    const cell = view.cell;
+    if (cell < 8) return;
+
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.lineWidth = 1;
+
+    const cStart = Math.max(0, Math.floor((-view.ox) / cell) - 1);
+    const cEnd = Math.min(C, Math.ceil((w - view.ox) / cell) + 1);
+    for (let c = cStart; c <= cEnd; c++) {
+      const x = view.ox + c * cell;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+
+    const rStart = Math.max(0, Math.floor((-view.oy) / cell) - 1);
+    const rEnd = Math.min(R, Math.ceil((h - view.oy) / cell) + 1);
+    for (let r = rStart; r <= rEnd; r++) {
+      const y = view.oy + r * cell;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+  }
+
+  function drawBoardBoundaryIfWanted() {
+    if (!showOuterBoundaryEl.checked) return;
+    const p0 = gridToPixel(0,0);
+    const p1 = gridToPixel(R,C);
+    ctx.strokeStyle = "rgba(231,238,247,0.88)";
+    ctx.lineWidth = Math.max(2, view.cell * 0.08);
+    ctx.strokeRect(p0.x, p0.y, p1.x - p0.x, p1.y - p0.y);
+  }
+
+  function roomListToSizeText(rooms) {
+    if (!rooms.length) return "none";
+    const counts = new Map();
+    for (const r of rooms) counts.set(r.size, (counts.get(r.size)||0)+1);
+    return [...counts.entries()].sort((a,b)=>a[0]-b[0]).map(([k,v]) => v===1 ? `${k}` : `${k}×${v}`).join(", ");
+  }
+
+  function updateOverlayAndScore(roomsRelevant, runs) {
+    scoreText.textContent = `${runs.hRuns} horizontal + ${runs.vRuns} vertical = ${runs.total} walls`;
+
+    countOuter = (countOuterSelect.value === 'yes');
+
+    if (mode === 'sequential') {
+      evaluateSequentialProgress(roomsRelevant);
+      const done = sequential.goal > 0 && sequential.next > sequential.goal;
+      overlayTitle.textContent = "Lazy Architect";
+      overlaySub.textContent = done
+        ? `✅ Sequence complete. ${scoreText.textContent}`
+        : `Build rooms in order. Next target: ${sequential.next}. Found now: ${roomListToSizeText(roomsRelevant)}`;
+    } else {
+      overlayTitle.textContent = (mode === 'energetic') ? "Energetic Architect" : "Lazy Architect";
+      overlaySub.textContent = (mode === 'energetic')
+        ? `Make the target rooms, but maximize walls. Found now: ${roomListToSizeText(roomsRelevant)}`
+        : `Use as few walls as possible. Found now: ${roomListToSizeText(roomsRelevant)}`;
     }
   }
 
   function draw() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawingRAF = 0;
 
     const rect = canvas.getBoundingClientRect();
-    const pad = 18;
     const w = rect.width, h = rect.height;
+    if (w <= 0 || h <= 0) return;
 
-    const cellSize = Math.floor(Math.min((w - pad*2)/C, (h - pad*2)/R));
-    const gridW = cellSize * C;
-    const gridH = cellSize * R;
+    ctx.clearRect(0,0,w,h);
 
-    const ox = Math.floor((w - gridW)/2);
-    const oy = Math.floor((h - gridH)/2);
+    if (autoFitToggleEl.checked) {
+      const changed =
+        Math.abs(view.targetCell - view.cell) > 0.1 ||
+        Math.abs(view.targetOx - view.ox) > 0.4 ||
+        Math.abs(view.targetOy - view.oy) > 0.4;
 
-    // background
-    ctx.fillStyle = "#0f141b";
-    ctx.fillRect(0,0,w,h);
-
-    // compute rooms + matching
-    const targets = parseTargets();
-    const rooms = computeRoomObjects();
-    const match = matchTargets(rooms, targets);
-    const wallLines = wallLineCount();
-    updateStatus(rooms, match, wallLines, targets);
-
-    // fill matched rooms with color
-    for (const m of match.matched) {
-      const room = rooms[m.roomIndex];
-      ctx.fillStyle = colorForSize(room.size);
-      for (const [r,c] of room.cells) {
-        const x = ox + c*cellSize;
-        const y = oy + r*cellSize;
-        ctx.fillRect(x+1, y+1, cellSize-2, cellSize-2);
+      if (changed) {
+        view.cell += (view.targetCell - view.cell) * 0.18;
+        view.ox   += (view.targetOx - view.ox)     * 0.18;
+        view.oy   += (view.targetOy - view.oy)     * 0.18;
+      } else {
+        view.cell = view.targetCell;
+        view.ox = view.targetOx;
+        view.oy = view.targetOy;
       }
     }
 
-    // subtle grid
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.lineWidth = 1;
-    for (let r = 0; r <= R; r++) {
-      ctx.beginPath();
-      ctx.moveTo(ox, oy + r*cellSize);
-      ctx.lineTo(ox + gridW, oy + r*cellSize);
-      ctx.stroke();
-    }
-    for (let c = 0; c <= C; c++) {
-      ctx.beginPath();
-      ctx.moveTo(ox + c*cellSize, oy);
-      ctx.lineTo(ox + c*cellSize, oy + gridH);
-      ctx.stroke();
+    ctx.fillStyle = "#07101a";
+    ctx.fillRect(0,0,w,h);
+
+    drawBackgroundGrid();
+
+    const allRooms = computeRooms();
+    const roomsRelevant = getRelevantRooms(allRooms);
+
+    const regionFills = assignRegionColours(roomsRelevant);
+
+    let matchedSet = null;
+    if (mode === 'classic' || mode === 'energetic') {
+      const classicMatch = matchTargets(roomsRelevant, parseTargets());
+      matchedSet = new Set(classicMatch.matched.map(m => m.roomIndex));
     }
 
-    // walls
-    ctx.strokeStyle = "rgba(231,238,247,0.95)";
-    ctx.lineWidth = 5;
+    for (let i = 0; i < roomsRelevant.length; i++) {
+      const room = roomsRelevant[i];
+      const shouldFill = (
+        mode === 'sequential' ||
+        !showMatchedOnlyEl.checked ||
+        (matchedSet && matchedSet.has(i))
+      );
+      if (!shouldFill) continue;
+
+      ctx.fillStyle = regionFills[i];
+      for (const [r,c] of room.cells) {
+        const p = gridToPixel(r,c);
+        const size = Math.max(0, view.cell - 2);
+        if (p.x + size < -4 || p.y + size < -4 || p.x > w + 4 || p.y > h + 4) continue;
+        ctx.fillRect(p.x + 1, p.y + 1, size, size);
+      }
+    }
+
+    drawBoardBoundaryIfWanted();
+
+    ctx.strokeStyle = "rgba(232,238,246,0.94)";
+    ctx.lineWidth = Math.max(2.2, view.cell * 0.10);
     ctx.lineCap = "round";
 
-    // vertical walls
     for (let r = 0; r < R; r++) {
       for (let c = 0; c <= C; c++) {
         if (!verticalWalls[r][c]) continue;
-        const x = ox + c*cellSize;
-        const y1 = oy + r*cellSize;
-        const y2 = oy + (r+1)*cellSize;
+        if (!showOuterBoundaryEl.checked && (c === 0 || c === C)) continue;
+        const p1 = gridToPixel(r, c);
+        const p2 = gridToPixel(r+1, c);
+        if ((p1.x < -20 && p2.x < -20) || (p1.x > w + 20 && p2.x > w + 20)) continue;
+        if ((Math.max(p1.y,p2.y) < -20) || (Math.min(p1.y,p2.y) > h + 20)) continue;
         ctx.beginPath();
-        ctx.moveTo(x, y1);
-        ctx.lineTo(x, y2);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
         ctx.stroke();
       }
     }
-    // horizontal walls
     for (let r = 0; r <= R; r++) {
       for (let c = 0; c < C; c++) {
         if (!horizontalWalls[r][c]) continue;
-        const y = oy + r*cellSize;
-        const x1 = ox + c*cellSize;
-        const x2 = ox + (c+1)*cellSize;
+        if (!showOuterBoundaryEl.checked && (r === 0 || r === R)) continue;
+        const p1 = gridToPixel(r, c);
+        const p2 = gridToPixel(r, c+1);
+        if ((p1.y < -20 && p2.y < -20) || (p1.y > h + 20 && p2.y > h + 20)) continue;
+        if ((Math.max(p1.x,p2.x) < -20) || (Math.min(p1.x,p2.x) > w + 20)) continue;
         ctx.beginPath();
-        ctx.moveTo(x1, y);
-        ctx.lineTo(x2, y);
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
         ctx.stroke();
       }
     }
 
-    // labels for matched rooms (size number)
-    // place at the average of cell centers
-    for (const m of match.matched) {
-      const room = rooms[m.roomIndex];
-      let sx = 0, sy = 0;
-      for (const [r,c] of room.cells) {
-        sx += (ox + c*cellSize + cellSize/2);
-        sy += (oy + r*cellSize + cellSize/2);
+    if (showRoomNumbersEl.checked && view.cell >= 12) {
+      for (let i = 0; i < roomsRelevant.length; i++) {
+        const room = roomsRelevant[i];
+        if (room.size > 9999) continue;
+        if ((mode === 'classic' || mode === 'energetic') && showMatchedOnlyEl.checked && matchedSet && !matchedSet.has(i)) continue;
+
+        const anchor = labelAnchorForRoom(room);
+        const p = gridToPixel(anchor.r, anchor.c);
+        const cx = p.x + view.cell/2;
+        const cy = p.y + view.cell/2;
+        if (cx < -40 || cy < -40 || cx > w + 40 || cy > h + 40) continue;
+
+        const fontPx = Math.max(12, Math.min(34, Math.floor(view.cell * (String(room.size).length >= 2 ? 0.52 : 0.62))));
+        ctx.font = `bold ${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        ctx.lineWidth = Math.max(2.5, Math.floor(view.cell * 0.12));
+        ctx.strokeStyle = "rgba(5,10,17,0.80)";
+        ctx.strokeText(String(room.size), cx, cy);
+
+        ctx.fillStyle = "rgba(240,246,252,0.95)";
+        ctx.fillText(String(room.size), cx, cy);
       }
-      const cx = sx / room.cells.length;
-      const cy = sy / room.cells.length;
-
-      ctx.font = `bold ${Math.max(14, Math.floor(cellSize*0.55))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      // outline for readability
-      ctx.lineWidth = Math.max(3, Math.floor(cellSize*0.08));
-      ctx.strokeStyle = "rgba(0,0,0,0.55)";
-      ctx.strokeText(String(room.size), cx, cy);
-
-      ctx.fillStyle = "rgba(231,238,247,0.92)";
-      ctx.fillText(String(room.size), cx, cy);
     }
+
+    const runs = countWallRunsDetailed();
+    updateOverlayAndScore(roomsRelevant, runs);
+
+    if (autoFitToggleEl.checked) {
+      const stillMoving =
+        Math.abs(view.targetCell - view.cell) > 0.12 ||
+        Math.abs(view.targetOx - view.ox) > 0.45 ||
+        Math.abs(view.targetOy - view.oy) > 0.45;
+      if (stillMoving) requestDraw();
+    }
+  }
+
+  function requestDraw() {
+    if (drawingRAF) return;
+    drawingRAF = requestAnimationFrame(draw);
   }
 
   function toggleWallAt(px, py) {
-    const rect = canvas.getBoundingClientRect();
-    const w = rect.width, h = rect.height;
-    const pad = 18;
-    const cellSize = Math.floor(Math.min((w - pad*2)/C, (h - pad*2)/R));
-    const gridW = cellSize * C;
-    const gridH = cellSize * R;
-    const ox = Math.floor((w - gridW)/2);
-    const oy = Math.floor((h - gridH)/2);
+    const cell = view.cell;
+    if (!Number.isFinite(cell) || cell < 2) return;
 
-    const tol = Math.max(10, Math.floor(cellSize * 0.18));
+    const gx = (px - view.ox) / cell;
+    const gy = (py - view.oy) / cell;
 
-    const gx = px - ox;
-    const gy = py - oy;
-    if (gx < -tol || gy < -tol || gx > gridW + tol || gy > gridH + tol) return;
+    const cLine = Math.round(gx);
+    const rLine = Math.round(gy);
+    const dx = Math.abs(gx - cLine);
+    const dy = Math.abs(gy - rLine);
 
-    const cFloat = gx / cellSize;
-    const rFloat = gy / cellSize;
+    const tol = Math.max(0.14, Math.min(0.28, 10 / Math.max(10, cell)));
+    const changes = [];
 
-    const cLine = Math.round(cFloat);
-    const rLine = Math.round(rFloat);
+    function pushChange(kind, r, c, from, to){
+      changes.push({kind, r, c, from, to});
+    }
 
-    const xLine = cLine * cellSize;
-    const yLine = rLine * cellSize;
-
-    const dx = Math.abs(gx - xLine);
-    const dy = Math.abs(gy - yLine);
-
-    // vertical edge toggle
     if (dx < dy && dx <= tol) {
       const c = cLine;
-      if (c < 0 || c > C) return;
-      const r = Math.floor(gy / cellSize);
-      if (r < 0 || r >= R) return;
+      const r = Math.floor(gy);
+      if (r < 0 || r >= R || c < 0 || c > C) return;
 
       const isOuter = (c === 0 || c === C);
-      if (isOuter) {
-        verticalWalls[r][c] = true; // keep boundary
-      } else {
-        verticalWalls[r][c] = !verticalWalls[r][c];
-      }
-      draw();
+      if (isOuter && boundaryEnforced) { beep('bad', 0.05); return; }
+      const old = verticalWalls[r][c];
+      verticalWalls[r][c] = !old;
+      pushChange('v', r, c, old, !old);
+    } else if (dy <= tol) {
+      const r = rLine;
+      const c = Math.floor(gx);
+      if (r < 0 || r > R || c < 0 || c >= C) return;
+
+      const isOuter = (r === 0 || r === R);
+      if (isOuter && boundaryEnforced) { beep('bad', 0.05); return; }
+      const old = horizontalWalls[r][c];
+      horizontalWalls[r][c] = !old;
+      pushChange('h', r, c, old, !old);
+    } else {
       return;
     }
 
-    // horizontal edge toggle
-    if (dy <= tol) {
-      const r = rLine;
-      if (r < 0 || r > R) return;
-      const c = Math.floor(gx / cellSize);
-      if (c < 0 || c >= C) return;
-
-      const isOuter = (r === 0 || r === R);
-      if (isOuter) {
-        horizontalWalls[r][c] = true; // keep boundary
-      } else {
-        horizontalWalls[r][c] = !horizontalWalls[r][c];
-      }
-      draw();
+    if (changes.length) {
+      history.push(changes);
+      redo = [];
+      if (autoFitToggleEl.checked) fitView(false);
+      requestDraw();
     }
   }
 
-  // UI
-  document.getElementById('reset').addEventListener('click', () => {
-    initWalls(Number(elRows.value), Number(elCols.value));
-    resetInteriorWalls();
-    draw();
+  function applyChangeSet(changes, direction) {
+    for (const ch of changes) {
+      const value = (direction === 'undo') ? ch.from : ch.to;
+      if (ch.kind === 'v') verticalWalls[ch.r][ch.c] = value;
+      else horizontalWalls[ch.r][ch.c] = value;
+    }
+    if (autoFitToggleEl.checked) fitView(false);
+    requestDraw();
+  }
+
+  function doUndo() {
+    const changes = history.pop();
+    if (!changes) return;
+    redo.push(changes);
+    applyChangeSet(changes, 'undo');
+  }
+
+  function doRedo() {
+    const changes = redo.pop();
+    if (!changes) return;
+    history.push(changes);
+    applyChangeSet(changes, 'redo');
+  }
+
+  let audioCtx = null;
+  function beep(type='good', duration=0.09) {
+    if (!soundToggleEl.checked) return;
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = (type === 'bad') ? 'square' : 'sine';
+      o.frequency.value = (type === 'bad') ? 190 : (type === 'warn' ? 330 : 520);
+      g.gain.value = 0.0001;
+      o.connect(g); g.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(type === 'bad' ? 0.03 : 0.025, now + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      o.start(now);
+      o.stop(now + duration + 0.01);
+    } catch (e) {}
+  }
+
+  let flashTimer = null;
+  function flash(msg, cls='warn', ms=900) {
+    flashEl.textContent = msg;
+    flashEl.className = `flash ${cls} show`;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { flashEl.className = 'flash'; }, ms);
+  }
+
+  // EVENTS
+
+  toggleSidebarBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    setTimeout(forceCanvasResync, 0);
+    setTimeout(forceCanvasResync, 80);
+    setTimeout(forceCanvasResync, 180);
+    setTimeout(forceCanvasResync, 260);
   });
 
-  document.getElementById('random').addEventListener('click', () => {
-    initWalls(Number(elRows.value), Number(elCols.value));
+  undoBtn.addEventListener('click', doUndo);
+
+  resetBtn.addEventListener('click', () => {
+    resetBoardForCurrentMode();
+    flash("Board reset.", "warn", 700);
+  });
+
+  randomBtn.addEventListener('click', () => {
+    if (mode === 'sequential') {
+      flash("Randomize is for classic / energetic modes.", "warn", 900);
+      return;
+    }
+    const rr = clamp(Number(elRows.value)||16, 4, 80);
+    const cc = clamp(Number(elCols.value)||18, 4, 80);
+    initWalls(rr, cc);
     randomize();
-    draw();
+    fitView(true);
+    requestDraw();
   });
 
-  document.getElementById('outerOn').addEventListener('click', () => {
-    countOuter = true;
-    draw();
+  toggleTeacherBtn.addEventListener('click', () => {
+    const open = teacherPanelWrap.classList.toggle('open');
+    toggleTeacherBtn.textContent = open ? '▾ Teacher panel' : '▸ Teacher panel';
+    setTimeout(forceCanvasResync, 0);
   });
-  document.getElementById('outerOff').addEventListener('click', () => {
-    countOuter = false;
-    draw();
+
+  modeSelect.addEventListener('change', () => {
+    mode = modeSelect.value;
+    classicControls.style.display = (mode === 'classic' || mode === 'energetic') ? '' : 'none';
+    sequentialControls.style.display = (mode === 'sequential') ? '' : 'none';
+
+    if (mode === 'sequential') {
+      overlayTitle.textContent = "Lazy Architect";
+      overlaySub.textContent = "Build rooms in order: 1, 2, 3, ...";
+      resetBoardForCurrentMode();
+    } else {
+      overlayTitle.textContent = mode === 'energetic' ? "Energetic Architect" : "Lazy Architect";
+      overlaySub.textContent = mode === 'energetic'
+        ? "Make the target rooms, but try to maximize walls."
+        : "Make the target rooms using as few walls as possible.";
+      resetBoardForCurrentMode();
+    }
+  });
+
+  applyClassicGridBtn.addEventListener('click', () => {
+    if (!(mode === 'classic' || mode === 'energetic')) return;
+    resetBoardForCurrentMode();
   });
 
   [elSizes, elRows, elCols].forEach(el => el.addEventListener('change', () => {
-    initWalls(Number(elRows.value), Number(elCols.value));
-    resetInteriorWalls();
-    draw();
+    if (mode === 'classic' || mode === 'energetic') requestDraw();
   }));
+
+  [
+    paletteModeEl, countOuterSelect, lockProgressSelect, showOuterBoundaryEl,
+    showGridLinesEl, showRoomNumbersEl, showMatchedOnlyEl, autoFitToggleEl
+  ].forEach(el => {
+    el.addEventListener('change', () => {
+      countOuter = (countOuterSelect.value === 'yes');
+      if (autoFitToggleEl.checked) fitView(false);
+      requestDraw();
+    });
+  });
+
+  seed1Btn.addEventListener('click', () => {
+    if (mode !== 'sequential') {
+      flash("Seed is for sequential explorer mode.", "warn", 900);
+      return;
+    }
+    seedCentralOneByOne(true);
+    if (autoFitToggleEl.checked) fitView(false);
+    requestDraw();
+    flash("Seeded a central 1×1 room.", "good", 900);
+  });
+
+  clearProgressBtn.addEventListener('click', () => {
+    resetSequentialProgress();
+    requestDraw();
+    flash("Sequence progress cleared.", "warn", 800);
+  });
+
+  seqStartEl.addEventListener('change', () => {
+    if (mode === 'sequential') {
+      resetSequentialProgress();
+      requestDraw();
+    }
+  });
+
+  seqGoalEl.addEventListener('change', () => {
+    if (mode === 'sequential') {
+      sequential.goal = Math.max(0, Number(seqGoalEl.value)||0);
+      requestDraw();
+    }
+  });
 
   canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-    toggleWallAt(px, py);
+    toggleWallAt(e.clientX - rect.left, e.clientY - rect.top);
   });
 
-  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('keydown', (e) => {
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+      e.preventDefault(); doUndo();
+    } else if ((mod && e.key.toLowerCase() === 'y') || (mod && e.shiftKey && e.key.toLowerCase() === 'z')) {
+      e.preventDefault(); doRedo();
+    } else if (e.key === '?') {
+      sidebar.classList.toggle('open');
+      setTimeout(forceCanvasResync, 0);
+      setTimeout(forceCanvasResync, 120);
+      setTimeout(forceCanvasResync, 260);
+    }
+  });
 
-  // start
-  initWalls(R, C);
-  resetInteriorWalls();
+  window.addEventListener('resize', forceCanvasResync);
+
+  if ('ResizeObserver' in window) {
+    resizeObserver = new ResizeObserver(() => { forceCanvasResync(); });
+    resizeObserver.observe(canvasWrap);
+    resizeObserver.observe(canvas);
+  }
+
+  sidebar.addEventListener('transitionend', (e) => {
+    if (e.propertyName === 'width') {
+      clearTimeout(sidebarTransitionTimer);
+      sidebarTransitionTimer = setTimeout(() => forceCanvasResync(), 10);
+    }
+  });
+
+  // Init
+  countOuter = (countOuterSelect.value === 'yes');
+  mode = modeSelect.value;
+  resetSequentialProgress();
+  initWalls(48, 48);
+  clearInteriorWalls();
+  seedCentralOneByOne(false);
+
+  sidebar.classList.remove('open');            // rules hidden by default
+  teacherPanelWrap.classList.remove('open');   // teacher panel collapsed by default
+  toggleTeacherBtn.textContent = '▸ Teacher panel';
+
+  classicControls.style.display = 'none';
+  sequentialControls.style.display = '';
+
   resizeCanvas();
+  fitView(true);
+  requestDraw();
 })();
 </script>
 </body>
