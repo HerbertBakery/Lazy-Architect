@@ -297,12 +297,74 @@
       background: rgba(255,255,255,.06);
     }
 
+    /* Completion screen */
+    .completionScreen{
+      position:absolute;
+      inset:0;
+      z-index:15;
+      display:grid;
+      place-items:center;
+      padding:20px;
+      background:rgba(4,10,16,.58);
+      backdrop-filter: blur(4px);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .18s ease;
+    }
+    .completionScreen.show{
+      opacity:1;
+      pointer-events:auto;
+    }
+    .completionCard{
+      width:min(520px, 92vw);
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.14);
+      background:linear-gradient(180deg, rgba(14,24,36,.96), rgba(8,14,24,.96));
+      box-shadow:0 20px 50px rgba(0,0,0,.38);
+      padding:18px 18px 16px;
+      text-align:center;
+    }
+    .completionTitle{
+      font-size:28px;
+      font-weight:800;
+      margin-bottom:6px;
+      letter-spacing:.2px;
+    }
+    .completionSub{
+      font-size:14px;
+      color:var(--muted);
+      line-height:1.4;
+      margin-bottom:12px;
+    }
+    .completionWallCount{
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.03);
+      border-radius:12px;
+      padding:10px 12px;
+      font-size:18px;
+      font-weight:700;
+      margin-bottom:10px;
+    }
+    .completionBreakdown{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:14px;
+    }
+    .completionActions{
+      display:flex;
+      gap:10px;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+
     @media (max-width: 800px){
       .sidebar.open{ width:min(90vw,340px); }
       .sidebarInner{ width:min(90vw,340px); }
       .scoreBanner{ font-size:16px; right:12px; bottom:12px; }
       .overlayInfo{ padding:8px 10px; }
       .overlayInfo .line1{ font-size:14px; }
+      .completionTitle{ font-size:24px; }
+      .completionWallCount{ font-size:16px; }
     }
   </style>
 </head>
@@ -438,6 +500,20 @@
         <div class="muted">Wall count</div>
         <div id="scoreText">0 horizontal + 0 vertical = 0 walls</div>
       </div>
+
+      <!-- Completion screen (classic / energetic only) -->
+      <div class="completionScreen" id="completionScreen" aria-hidden="true">
+        <div class="completionCard">
+          <div class="completionTitle" id="completionTitle">🎉 You did it!</div>
+          <div class="completionSub" id="completionSub">You completed all target rooms.</div>
+          <div class="completionWallCount" id="completionWallCount">0 walls</div>
+          <div class="completionBreakdown" id="completionBreakdown">0 horizontal + 0 vertical</div>
+          <div class="completionActions">
+            <button class="btn primary" id="completionResetBtn" type="button">Play again</button>
+            <button class="btn" id="completionCloseBtn" type="button">Keep viewing</button>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -486,6 +562,15 @@
   const overlayTitle = document.getElementById('overlayTitle');
   const overlaySub = document.getElementById('overlaySub');
 
+  // Completion screen refs
+  const completionScreen = document.getElementById('completionScreen');
+  const completionTitle = document.getElementById('completionTitle');
+  const completionSub = document.getElementById('completionSub');
+  const completionWallCount = document.getElementById('completionWallCount');
+  const completionBreakdown = document.getElementById('completionBreakdown');
+  const completionResetBtn = document.getElementById('completionResetBtn');
+  const completionCloseBtn = document.getElementById('completionCloseBtn');
+
   // Logical board
   let R = 48, C = 48;
   let verticalWalls = [];   // [r][c] c=0..C
@@ -507,6 +592,12 @@
     goal: 0,
     wrongOrderFlashStamp: 0,
     lastCelebrated: 0
+  };
+
+  // Completion state (classic / energetic)
+  let completion = {
+    active: false,
+    dismissed: false
   };
 
   let mode = 'sequential';
@@ -543,6 +634,49 @@
 
   function clamp(n, lo, hi){
     return Math.max(lo, Math.min(hi, n));
+  }
+
+  function resetCompletionState() {
+    completion.active = false;
+    completion.dismissed = false;
+    completionScreen.classList.remove('show');
+    completionScreen.setAttribute('aria-hidden', 'true');
+  }
+
+  function showCompletionScreen(runs) {
+    const total = runs.total;
+    completion.active = true;
+    completion.dismissed = false;
+
+    if (mode === 'energetic') {
+      completionTitle.textContent = "🔥 You did it!";
+      completionSub.textContent = "All target rooms are complete (Energetic Architect).";
+    } else {
+      completionTitle.textContent = "🎉 You did it!";
+      completionSub.textContent = "All target rooms are complete (Classic mode).";
+    }
+
+    completionWallCount.textContent = `${total} wall${total === 1 ? '' : 's'}`;
+    completionBreakdown.textContent = `${runs.hRuns} horizontal + ${runs.vRuns} vertical = ${runs.total} walls`;
+
+    completionScreen.classList.add('show');
+    completionScreen.setAttribute('aria-hidden', 'false');
+    beep('good', 0.14);
+  }
+
+  function dismissCompletionScreen() {
+    completion.dismissed = true;
+    completionScreen.classList.remove('show');
+    completionScreen.setAttribute('aria-hidden', 'true');
+  }
+
+  function isGameplayLocked() {
+    return completion.active && (mode === 'classic' || mode === 'energetic');
+  }
+
+  // NEW: in classic/energetic, always visually frame the selected grid board
+  function shouldShowBoardFrame() {
+    return showOuterBoundaryEl.checked || mode === 'classic' || mode === 'energetic';
   }
 
   function initWalls(rows, cols) {
@@ -582,6 +716,8 @@
   }
 
   function resetBoardForCurrentMode() {
+    resetCompletionState();
+
     if (mode === 'classic' || mode === 'energetic') {
       const rr = clamp(Number(elRows.value)||16, 4, 80);
       const cc = clamp(Number(elCols.value)||18, 4, 80);
@@ -955,7 +1091,7 @@
     for (let r = 0; r < R; r++) {
       for (let c = 0; c <= C; c++) {
         if (!verticalWalls[r][c]) continue;
-        if (!showOuterBoundaryEl.checked && (c===0 || c===C)) continue;
+        if (!shouldShowBoardFrame() && (c===0 || c===C)) continue;
         found = true;
         minGX = Math.min(minGX, c);
         maxGX = Math.max(maxGX, c);
@@ -966,7 +1102,7 @@
     for (let r = 0; r <= R; r++) {
       for (let c = 0; c < C; c++) {
         if (!horizontalWalls[r][c]) continue;
-        if (!showOuterBoundaryEl.checked && (r===0 || r===R)) continue;
+        if (!shouldShowBoardFrame() && (r===0 || r===R)) continue;
         found = true;
         minGX = Math.min(minGX, c);
         maxGX = Math.max(maxGX, c+1);
@@ -1031,6 +1167,42 @@
     ctx.strokeStyle = "rgba(255,255,255,0.05)";
     ctx.lineWidth = 1;
 
+    // NEW: In classic/energetic, draw grid ONLY inside the actual board rectangle
+    // so long full-canvas lines don't visually dominate.
+    if (mode === 'classic' || mode === 'energetic') {
+      const p0 = gridToPixel(0, 0);
+      const p1 = gridToPixel(R, C);
+
+      const left = Math.min(p0.x, p1.x);
+      const right = Math.max(p0.x, p1.x);
+      const top = Math.min(p0.y, p1.y);
+      const bottom = Math.max(p0.y, p1.y);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left, top, right - left, bottom - top);
+      ctx.clip();
+
+      for (let c = 0; c <= C; c++) {
+        const x = view.ox + c * cell;
+        ctx.beginPath();
+        ctx.moveTo(x, top);
+        ctx.lineTo(x, bottom);
+        ctx.stroke();
+      }
+
+      for (let r = 0; r <= R; r++) {
+        const y = view.oy + r * cell;
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+      return;
+    }
+
     const cStart = Math.max(0, Math.floor((-view.ox) / cell) - 1);
     const cEnd = Math.min(C, Math.ceil((w - view.ox) / cell) + 1);
     for (let c = cStart; c <= cEnd; c++) {
@@ -1053,7 +1225,7 @@
   }
 
   function drawBoardBoundaryIfWanted() {
-    if (!showOuterBoundaryEl.checked) return;
+    if (!shouldShowBoardFrame()) return;
     const p0 = gridToPixel(0,0);
     const p1 = gridToPixel(R,C);
     ctx.strokeStyle = "rgba(231,238,247,0.88)";
@@ -1125,8 +1297,9 @@
     const regionFills = assignRegionColours(roomsRelevant);
 
     let matchedSet = null;
+    let classicMatch = null;
     if (mode === 'classic' || mode === 'energetic') {
-      const classicMatch = matchTargets(roomsRelevant, parseTargets());
+      classicMatch = matchTargets(roomsRelevant, parseTargets());
       matchedSet = new Set(classicMatch.matched.map(m => m.roomIndex));
     }
 
@@ -1157,7 +1330,7 @@
     for (let r = 0; r < R; r++) {
       for (let c = 0; c <= C; c++) {
         if (!verticalWalls[r][c]) continue;
-        if (!showOuterBoundaryEl.checked && (c === 0 || c === C)) continue;
+        if (!shouldShowBoardFrame() && (c === 0 || c === C)) continue;
         const p1 = gridToPixel(r, c);
         const p2 = gridToPixel(r+1, c);
         if ((p1.x < -20 && p2.x < -20) || (p1.x > w + 20 && p2.x > w + 20)) continue;
@@ -1171,7 +1344,7 @@
     for (let r = 0; r <= R; r++) {
       for (let c = 0; c < C; c++) {
         if (!horizontalWalls[r][c]) continue;
-        if (!showOuterBoundaryEl.checked && (r === 0 || r === R)) continue;
+        if (!shouldShowBoardFrame() && (r === 0 || r === R)) continue;
         const p1 = gridToPixel(r, c);
         const p2 = gridToPixel(r, c+1);
         if ((p1.y < -20 && p2.y < -20) || (p1.y > h + 20 && p2.y > h + 20)) continue;
@@ -1212,6 +1385,19 @@
     const runs = countWallRunsDetailed();
     updateOverlayAndScore(roomsRelevant, runs);
 
+    // Completion detection for classic / energetic
+    if ((mode === 'classic' || mode === 'energetic') && classicMatch && classicMatch.completed) {
+      if (!completion.active) {
+        showCompletionScreen(runs);
+      } else if (!completion.dismissed) {
+        // keep values fresh if settings affect counting
+        completionWallCount.textContent = `${runs.total} wall${runs.total === 1 ? '' : 's'}`;
+        completionBreakdown.textContent = `${runs.hRuns} horizontal + ${runs.vRuns} vertical = ${runs.total} walls`;
+      }
+    } else {
+      if (completion.active) resetCompletionState();
+    }
+
     if (autoFitToggleEl.checked) {
       const stillMoving =
         Math.abs(view.targetCell - view.cell) > 0.12 ||
@@ -1227,6 +1413,11 @@
   }
 
   function toggleWallAt(px, py) {
+    if (isGameplayLocked()) {
+      flash("✅ Puzzle complete. Press Reset to play again.", "good", 900);
+      return;
+    }
+
     const cell = view.cell;
     if (!Number.isFinite(cell) || cell < 2) return;
 
@@ -1288,6 +1479,10 @@
   }
 
   function doUndo() {
+    if (isGameplayLocked()) {
+      flash("✅ Puzzle complete. Press Reset to play again.", "good", 900);
+      return;
+    }
     const changes = history.pop();
     if (!changes) return;
     redo.push(changes);
@@ -1295,6 +1490,10 @@
   }
 
   function doRedo() {
+    if (isGameplayLocked()) {
+      flash("✅ Puzzle complete. Press Reset to play again.", "good", 900);
+      return;
+    }
     const changes = redo.pop();
     if (!changes) return;
     history.push(changes);
@@ -1349,12 +1548,17 @@
   });
 
   randomBtn.addEventListener('click', () => {
+    if (isGameplayLocked()) {
+      flash("✅ Puzzle complete. Press Reset to play again.", "good", 900);
+      return;
+    }
     if (mode === 'sequential') {
       flash("Randomize is for classic / energetic modes.", "warn", 900);
       return;
     }
     const rr = clamp(Number(elRows.value)||16, 4, 80);
     const cc = clamp(Number(elCols.value)||18, 4, 80);
+    resetCompletionState();
     initWalls(rr, cc);
     randomize();
     fitView(true);
@@ -1369,6 +1573,8 @@
 
   modeSelect.addEventListener('change', () => {
     mode = modeSelect.value;
+    resetCompletionState();
+
     classicControls.style.display = (mode === 'classic' || mode === 'energetic') ? '' : 'none';
     sequentialControls.style.display = (mode === 'sequential') ? '' : 'none';
 
@@ -1391,7 +1597,10 @@
   });
 
   [elSizes, elRows, elCols].forEach(el => el.addEventListener('change', () => {
-    if (mode === 'classic' || mode === 'energetic') requestDraw();
+    if (mode === 'classic' || mode === 'energetic') {
+      resetCompletionState();
+      requestDraw();
+    }
   }));
 
   [
@@ -1406,6 +1615,10 @@
   });
 
   seed1Btn.addEventListener('click', () => {
+    if (isGameplayLocked()) {
+      flash("✅ Puzzle complete. Press Reset to play again.", "good", 900);
+      return;
+    }
     if (mode !== 'sequential') {
       flash("Seed is for sequential explorer mode.", "warn", 900);
       return;
@@ -1436,6 +1649,15 @@
     }
   });
 
+  completionResetBtn.addEventListener('click', () => {
+    resetBoardForCurrentMode();
+    flash("Board reset.", "warn", 700);
+  });
+
+  completionCloseBtn.addEventListener('click', () => {
+    if (completion.active) dismissCompletionScreen();
+  });
+
   canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
     toggleWallAt(e.clientX - rect.left, e.clientY - rect.top);
@@ -1452,6 +1674,8 @@
       setTimeout(forceCanvasResync, 0);
       setTimeout(forceCanvasResync, 120);
       setTimeout(forceCanvasResync, 260);
+    } else if (e.key === 'Escape' && completion.active && !completion.dismissed) {
+      dismissCompletionScreen();
     }
   });
 
@@ -1474,6 +1698,7 @@
   countOuter = (countOuterSelect.value === 'yes');
   mode = modeSelect.value;
   resetSequentialProgress();
+  resetCompletionState();
   initWalls(48, 48);
   clearInteriorWalls();
   seedCentralOneByOne(false);
